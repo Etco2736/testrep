@@ -16,3 +16,4 @@ time of creation of the repo.
 4. "comment 2" - Added comment to lab 1
 5. "comment 3" - Added comment to lab 1
 6. "comment 4" - Added comment to lab 1
+7. "comment 5" - Added comment to lab 1
