@@ -12,4 +12,4 @@ Commits:
 1. "first commit" - contains all files as they were at the
 time of creation of the repo.
 2. "second commit" - I forgot to save the README...
-3.
+3. "comment 1" - Added comment to lab 1

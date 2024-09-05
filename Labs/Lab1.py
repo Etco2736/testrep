@@ -63,7 +63,7 @@ driver2()
 
 # Question 3
 a = np.array([[0,1],[1,0]])
-b = np.array([[1,1],[1,1]])
+b = np.array([[1,1],[1,1]]) # Make an array...
 print(np.matmul(a,b))
 print(np.vdot([0,1],[1,0]))
 
