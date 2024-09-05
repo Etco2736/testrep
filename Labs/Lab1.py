@@ -45,7 +45,7 @@ def dotProduct(x,y,n):
 
 # Question 2
 def driver2():
-    a = [[0,1],[1,0]]
+    a = [[0,1],[1,0]] # Initialize sample matrix
     b = [[1,1],[1,1]]
     n = 2
 
