@@ -7,3 +7,9 @@ Structure:
 Root will contain this README and two directories...
 "Homework" - Contains all scripts used in homeworks.
 "Labs" - Contains all scripts used in labs.
+---------------------------------------------------------------
+Commits:
+1. "first commit" - contains all files as they were at the
+time of creation of the repo.
+2. "second commit" - I forgot to save the README...
+3.
