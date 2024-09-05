@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 x = np.linspace(0,1,5)
 y = np.arange(0,1,0.2)
 # Question 2:
-x2 = x[:3]
+x2 = x[:3] #Slice Array
 # Question 3:
 print("The first three entries of x are:",x2)
 # Question 4:

@@ -14,3 +14,4 @@ time of creation of the repo.
 2. "second commit" - I forgot to save the README...
 3. "comment 1" - Added comment to lab 1
 3. "comment 2" - Added comment to lab 1
+3. "comment 3" - Added comment to lab 1
