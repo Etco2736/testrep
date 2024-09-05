@@ -20,7 +20,7 @@ plt.show()
 # Question 5:
 s = 3*w
 plt.clf()
-plt.semilogy(x,w,'-r',label="w")
+plt.semilogy(x,w,'-r',label="w") #make semilog plot
 plt.semilogy(x,s,'-b',label="s")
 plt.xlabel("x")
 plt.ylabel("Other Array")
