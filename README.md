@@ -1,3 +1,4 @@
+Coleman
 ---------------------------------------------------------------
 Description:
 Repo for all code in numerical methods and scientific computing
