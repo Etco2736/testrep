@@ -6,7 +6,22 @@ def f1(x):
     return (35)*s.erf(x/2/np.sqrt(0.138e-6*(60*60*24*60)))+-15
 
 def f1_prime(x):
-    return (35)*2/np.sqrt(np.pi)*np.exp(-(60*60*24*60)**2)
+    return (35)/np.sqrt(np.pi*0.138e-6*60*60*24*60)*np.exp(-(x/2/np.sqrt(60*60*24*60*0.138e-6))**2)
+
+def f4(x):
+    return np.exp(3*x)-27*x**6+27*x**4*np.exp(x)-9*x**2*np.exp(2*x)
+
+def f4_prime(x):
+    return 3*(np.exp(x)-6*x)*(np.exp(x)-3*x**2)**2
+
+def f4_2prime(x):
+    return 9*(-90*x**4 + 3*np.exp(x)*(x**2+8*x+12)*x**2 - 2*np.exp(2*x)*(2*x**2+4*x+1)+ np.exp(3*x))
+
+def f5(x):
+    return x**6 - x - 1
+
+def f5_prime(x):
+    return 6*x**5 - 1
 
 def bisection(f,a,b,tol):
     fa = f(a)
@@ -42,6 +57,8 @@ def newton(f,fp,x_0,tol):
     n_max = 500
     i = 0
     err = 500
+    p = []
+    vals = []
     if fp(x_0) == 0:
         return 1
     while err > tol:
@@ -53,7 +70,53 @@ def newton(f,fp,x_0,tol):
         if i > n_max:
             return -1
         i = i + 1
-    return x_0
+        p.append(err)
+        vals.append(x_0)
+    print('Iterations:', i)
+    return x_0,p,vals
+
+def secant(f,a,b,tol):
+    i = 0
+    err = 500
+    p = []
+    vals = []
+    while err > tol:
+        c = b - f(b)*(b-a)/(f(b)-f(a))
+        a = b
+        b = c
+        err = np.abs(c-a)
+        i = i + 1
+        if f(b)-f(a) == 0:
+            return -1,p,vals
+        p.append(err)
+        vals.append(c)
+    print("Iterations: ", i)
+    return c,p,vals
+
+def q5():
+    x,p1,val1 = newton(f5,f5_prime,2,10**-13)
+    y,p2,val2 = secant(f5,2,1,10**-13)
+    p1 = np.array(p1)
+    p2 = np.array(p2)
+    v1 = np.arange(0,p1.shape[0],1)
+    v2 = np.arange(0,p2.shape[0],1)
+    plt.plot(v1,p1,'-r',label="Newton")
+    plt.plot(v2,p2,'-b',label="Secant")
+    plt.legend(loc = 'upper right')
+    plt.xlabel("Iteration Number")
+    plt.ylabel("Error")
+    plt.show()
+    plt.clf()
+    v1 = np.array(val1[1:])
+    v2 = np.array(val2[1:])
+    val1 = np.array(val1[:-1])
+    val2 = np.array(val2[:-1])
+    plt.loglog(np.abs(v1-x),np.abs(val1-x),'-r',label="Newton")
+    plt.loglog(np.abs(v2-y),np.abs(val2-y),'-b',label="Secant")
+    plt.xlabel(r"$|x_{n+1} - \alpha|$")
+    plt.ylabel(r"$|x_n - \alpha|$")
+    plt.legend(loc = 'lower right')
+    plt.show()
 
 def main():
     # Question 1
@@ -68,11 +131,19 @@ def main():
     tol = 10**(-13)
     sol1 = bisection(f1,0,x_bar,tol)
     # Part C
-    sol2 = newton(f1,f1_prime,0.01,10**(-13))
-    sol3 = newton(f1,f1_prime,x_bar,10**(-13))
-    print(sol2,sol3)
-
+    sol2,p,v = newton(f1,f1_prime,0.01,10**(-13))
+    sol3,p,v = newton(f1,f1_prime,x_bar,10**(-13))
+    print(sol1,sol2,sol3)
+    plt.vlines(x=sol1, ymin = -15, ymax=15, linestyle='-', color='k')
+    plt.hlines(y=0, xmin = 0, xmax = 2, linestyle='-',color='k')
     plt.show()
 
+    # Question 4
+    
+
+    # Question 5
+    print("Question 5:")
+    q5()
+ 
 
 main()
