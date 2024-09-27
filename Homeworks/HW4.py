@@ -75,6 +75,50 @@ def newton(f,fp,x_0,tol):
     print('Iterations:', i)
     return x_0,p,vals
 
+def newton2(f,fp,x_0,m,tol):
+    n_max = 500
+    i = 0
+    err = 500
+    p = []
+    vals = []
+    if fp(x_0) == 0:
+        return 1
+    while err > tol:
+        x_1 = x_0-m*f(x_0)/fp(x_0)
+        err = abs(x_1-x_0)
+        x_0 = x_1
+        if fp(x_0) == 0:
+            return 1
+        if i > n_max:
+            return -1
+        i = i + 1
+        p.append(err)
+        vals.append(x_0)
+    print('Iterations:', i)
+    return x_0,p,vals
+
+def newton3(f,fp,fp2,x_0,tol):
+    n_max = 500
+    i = 0
+    err = 500
+    p = []
+    vals = []
+    if fp(x_0) == 0:
+        return 1
+    while err > tol:
+        x_1 = x_0 - f(x_0)/(fp(x_0)-f(x_0)*fp2(x_0)/fp(x_0))
+        err = abs(x_1-x_0)
+        x_0 = x_1
+        if fp(x_0) == 0:
+            return 1
+        if i > n_max:
+            return -1
+        i = i + 1
+        p.append(err)
+        vals.append(x_0)
+    print('Iterations:', i)
+    return x_0,p,vals
+
 def secant(f,a,b,tol):
     i = 0
     err = 500
@@ -92,6 +136,40 @@ def secant(f,a,b,tol):
         vals.append(c)
     print("Iterations: ", i)
     return c,p,vals
+
+def q4():
+    x,p1,val1 = newton(f4,f4_prime,4,10**-13)
+    y,p2,val2 = newton2(f4,f4_prime,4,2,10**-13)
+    z,p3,val3 = newton3(f4,f4_prime,f4_2prime,4,10**-13)
+    print(x,y,z)
+    print(f4(x),f4_prime(x),f4_2prime(x))
+    p1 = np.array(p1)
+    p2 = np.array(p2)
+    p3 = np.array(p3)
+    v1 = np.arange(0,p1.shape[0],1)
+    v2 = np.arange(0,p2.shape[0],1)
+    v3 = np.arange(0,p3.shape[0],1)
+    plt.plot(v1,p1,'-r',label=r"$g(x) = x-\frac{f(x)}{f'(x)}$")
+    plt.plot(v2,p2,'-b',label=r"$g(x) = x-m\frac{f(x)}{f'(x)}$")
+    plt.plot(v3,p3,'-g',label=r"$g(x) = x-\frac{f(x)}{f'(x)-\frac{f(x)f''(x)}{f'(x)}}$")
+    plt.legend(loc = 'upper right')
+    plt.xlabel("Iteration Number")
+    plt.ylabel("Error")
+    plt.show()
+    plt.clf()
+    v1 = np.array(val1[1:])
+    v2 = np.array(val2[1:])
+    v3 = np.array(val3[1:])
+    val1 = np.array(val1[:-1])
+    val2 = np.array(val2[:-1])
+    val3 = np.array(val3[:-1])
+    plt.loglog(np.abs(val1-x),np.abs(v1-x),'-r',label=r"$g(x) = x-\frac{f(x)}{f'(x)}$")
+    plt.loglog(np.abs(val2-y),np.abs(v2-y),'-b',label=r"$g(x) = x-m\frac{f(x)}{f'(x)}$")
+    plt.loglog(np.abs(val3-z),np.abs(v3-z),'-g',label=r"$g(x) = x-\frac{f(x)}{f'(x)-\frac{f(x)f''(x)}{f'(x)}}$")
+    plt.xlabel(r"$|x_n - \alpha|$")
+    plt.ylabel(r"$|x_{n+1} - \alpha|$")
+    plt.legend(loc = 'lower right')
+    plt.show()
 
 def q5():
     x,p1,val1 = newton(f5,f5_prime,2,10**-13)
@@ -111,10 +189,10 @@ def q5():
     v2 = np.array(val2[1:])
     val1 = np.array(val1[:-1])
     val2 = np.array(val2[:-1])
-    plt.loglog(np.abs(v1-x),np.abs(val1-x),'-r',label="Newton")
-    plt.loglog(np.abs(v2-y),np.abs(val2-y),'-b',label="Secant")
-    plt.xlabel(r"$|x_{n+1} - \alpha|$")
-    plt.ylabel(r"$|x_n - \alpha|$")
+    plt.loglog(np.abs(val1-x),np.abs(v1-x),'-r',label="Newton")
+    plt.loglog(np.abs(val2-y),np.abs(v2-y),'-b',label="Secant")
+    plt.xlabel(r"$|x_n - \alpha|$")
+    plt.ylabel(r"$|x_{n+1} - \alpha|$")
     plt.legend(loc = 'lower right')
     plt.show()
 
@@ -139,7 +217,8 @@ def main():
     plt.show()
 
     # Question 4
-    
+    print("Question 5")
+    q4()
 
     # Question 5
     print("Question 5:")
