@@ -6,6 +6,8 @@ from matplotlib.colors import LinearSegmentedColormap
 from scipy.sparse.linalg import bicgstab, gmres, minres
 from scipy.sparse import csr_matrix
 from scipy.optimize import newton_krylov
+from scipy.spatial import KDTree
+import random
 import time as timer
 
 def build_sources(num_sources,source_size,sources,c0):
@@ -306,18 +308,14 @@ def build_c_matrix(c,nx,ny,dx,dy,Nx,Ny,sc,num_sources,z,D):
 
         center = 0
         if indx == 0:
-            #continue
             center += (sum_right-sumx)/dx
         elif indx == nx-1:
-            #continue
             center += (sumx-sum_left)/dx
         else:
             center += (sum_right-sum_left)/dx2
         if indy == 0:
-            #continue
             center += (sum_up-sumy)/dy
         elif indy == ny-1:
-            #continue
             center += (sumy-sum_down)/dy
         else:
             center += (sum_up-sum_down)/dy2
@@ -408,19 +406,7 @@ def build_c_matrix(c,nx,ny,dx,dy,Nx,Ny,sc,num_sources,z,D):
         add_entry(i+size2_3,i+size2_3,center4)
 
     matrix = csr_matrix((data[:idx], (rows[:idx], cols[:idx])), shape=(size, size))
-    return matrix 
-
-    size = nx*ny*4
-    for i in range(size):
-        indx = i % nx 
-        indy = (i // nx) % ny
-        if dir == 0:
-            if indx == 0 or indx == nx-1:
-                x[i] = 0
-        if dir == 1:
-            if indy == 0 or indy == ny-1:
-                x[i] = 0
-    return x       
+    return matrix       
 
 def build_udp(c,dcdx,dcdy,psi_D,D,z,nx,ny):
     size = nx*ny
@@ -465,7 +451,51 @@ def build_udp(c,dcdx,dcdy,psi_D,D,z,nx,ny):
 
     return udpx,udpy
 
-def update_particles(n,nx,ny,dx,dy,sources,num_sources,source_size,num_particles,Dp,dt,udpx,udpy,step):
+def separate_particles(n,num_particles,rad,step):
+    print("Separating Particles")
+    stack = []
+    rad_check = 2*rad
+    tree = KDTree(n[:,:,step])
+    for i in range(num_particles):
+        if i % (num_particles//10) == 0:
+            print(i)
+        stack.append(i)
+
+        while stack:
+            ind = stack.pop()
+            x = n[ind,0,step]
+            y = n[ind,1,step]
+            query_point = [x,y]
+            distances, indices = tree.query(query_point, k=2)
+            r = distances[1]
+            j = indices[1]
+
+            if r > rad_check:
+                continue
+
+            x_diff = x - n[j,0,step]
+            y_diff = y - n[j,1,step]
+
+            if r == 0:
+                n[ind,0,step] += rad
+                n[j,0,step] -= rad
+                continue
+
+            x_diff = (rad_check-r)/r*x_diff
+            y_diff = (rad_check-r)/r*y_diff
+
+            n[j,0,step] -= x_diff
+            n[ind,0,step] += x_diff
+            n[j,1,step] -= y_diff
+            n[ind,1,step] += y_diff
+
+            stack.append(ind)
+            stack.append(j)
+            tree = KDTree(n[:,:,step])
+
+    return n
+    
+def update_particles(n,nx,ny,dx,dy,sources,num_sources,source_size,num_particles,Dp,rad,dt,udpx,udpy,step):
     for k in range(num_particles):  
         i = int((n[k,0,step-1]+1) // dx)
         j = int((n[k,1,step-1]+1) // dy)
@@ -485,7 +515,7 @@ def update_particles(n,nx,ny,dx,dy,sources,num_sources,source_size,num_particles
         f_xy1 = (x2 - n[k,0,step-1]) / (x2 - x1) * Q11 + (n[k,0,step-1] - x1) / (x2 - x1) * Q21
         f_xy2 = (x2 - n[k,0,step-1]) / (x2 - x1) * Q12 + (n[k,0,step-1] - x1) / (x2 - x1) * Q22
         f_xy = (y2 - n[k,1,step-1]) / (y2 - y1) * f_xy1 + (n[k,1,step-1] - y1) / (y2 - y1) * f_xy2
-        n[k,0,step] = n[k,0,step-1] + Dp*dt*f_xy
+        n[k,0,step] = n[k,0,step-1] + Dp*dt*f_xy + random.uniform(-1,1)*np.sqrt(Dp*2*dt)*dt
 
         Q11 = udpy[i + nx * j]
         Q21 = udpy[i + 1 + nx * j]
@@ -494,7 +524,7 @@ def update_particles(n,nx,ny,dx,dy,sources,num_sources,source_size,num_particles
         f_xy1 = (x2 - n[k,0,step-1]) / (x2 - x1) * Q11 + (n[k,0,step-1] - x1) / (x2 - x1) * Q21
         f_xy2 = (x2 - n[k,0,step-1]) / (x2 - x1) * Q12 + (n[k,0,step-1] - x1) / (x2 - x1) * Q22
         f_xy = (y2 - n[k,1,step-1]) / (y2 - y1) * f_xy1 + (n[k,1,step-1] - y1) / (y2 - y1) * f_xy2
-        n[k,1,step] = n[k,1,step-1] + Dp*dt*f_xy
+        n[k,1,step] = n[k,1,step-1] + Dp*dt*f_xy + random.uniform(-1,1)*np.sqrt(Dp*2*dt)*dt
 
     bad = np.where(n[:,0,step] < -1)[0]
     n[bad,0,step] = -1
@@ -506,6 +536,16 @@ def update_particles(n,nx,ny,dx,dy,sources,num_sources,source_size,num_particles
     n[bad,1,step] = 1
 
     n = clear_sources(n,sources,num_sources,source_size,step)
+    n = separate_particles(n,num_particles,rad,step)
+
+    bad = np.where(n[:,0,step] < -1)[0]
+    n[bad,0,step] = -1
+    bad = np.where(n[:,0,step] > 1)[0]
+    n[bad,0,step] = 1
+    bad = np.where(n[:,1,step] < -1)[0]
+    n[bad,1,step] = -1
+    bad = np.where(n[:,1,step] > 1)[0]
+    n[bad,1,step] = 1
 
     return n
 
@@ -529,6 +569,8 @@ def c_boundary(c,nx,ny):
 def plot_final(c,n,nx,ny,sources,num_sources,source_size,num_particles):
     def update(frame,c):
         plt.clf()
+        if frame % 100 == 0:
+            print(frame)
         c_plot = c[frame].reshape(4,nx,ny)
         ax = fig.add_subplot(2,2,1)
         ax2 = fig.add_subplot(2,2,2)
@@ -557,65 +599,65 @@ def plot_final(c,n,nx,ny,sources,num_sources,source_size,num_particles):
     vid.save('c_temp.mp4',fps=50)
 
     cmap = LinearSegmentedColormap.from_list("PurpleYellow", ["purple", "yellow"])
+    norm = plt.Normalize(0, c.shape[0])
 
-    def create_gradient_line(x, y, end_idx):
-        norm = plt.Normalize(0, end_idx)
-        color_vals = np.linspace(0, 1, end_idx)
-        points = np.array([x[:end_idx], y[:end_idx]]).T.reshape(-1, 1, 2)
+    def create_gradient_line(x, y):
+        points = np.array([x, y]).T.reshape(-1, 1, 2)
         segments = np.concatenate([points[:-1], points[1:]], axis=1)
         lc = LineCollection(segments, cmap=cmap, norm=norm)
-        lc.set_array(color_vals)
         lc.set_linewidth(0.2)  
         return lc
-    
-    fig2 = plt.figure()
-    def update2(frame,n):
-        plt.clf()
-        n_plot = n[:frame+1,:,:]
-        ax = fig2.add_subplot(1,1,1)
-        ax.set_facecolor('black')
-        ax.set_xlim(-1, 1)
-        ax.set_ylim(-1, 1)
-        ax.set_aspect("equal")
-        plt.title("Particle Streaklines")
-        
-        for i in range(num_particles):
-            x = n_plot[:,i,0]
-            y = n_plot[:,i,1]
-            lc1 = create_gradient_line(x, y, frame)
-            ax.add_collection(lc1)
 
+    fig3 = plt.figure()
+    def update3(frame,n):
+        if frame % 100 == 0:
+            print(frame)
+        ax = fig3.add_subplot(1,1,1)
+        ax.set_facecolor("black")
+        ax.set_xlim(-1,1)
+        ax.set_ylim(-1,1)
+        ax.set_aspect("equal")
+        ax.set_title("Final Positions")
+        ax.scatter(n[frame,:,0],n[frame,:,1],marker='o',color='yellow',s=0.1)
         for i in range(num_sources):
             if sources[i,2] == 0:
                 circle = plt.Circle((sources[i,0], sources[i,1]), source_size, color='red', fill=True)
             if sources[i,2] == 1:
                 circle = plt.Circle((sources[i,0], sources[i,1]), source_size, color='blue', fill=True)
             ax.add_patch(circle)
-        
-    vid = FuncAnimation(fig=fig2, func=update2, fargs = (n,), frames=c.shape[0])
+
+    vid = FuncAnimation(fig=fig3, func=update3, fargs = (n,), frames=c.shape[0])
     vid.save('n_temp.mp4',fps=50)
 
-    fig3 = plt.figure()
-    ax = fig3.add_subplot(1,1,1)
-    ax.set_facecolor("black")
-    ax.set_xlim(-1,1)
-    ax.set_ylim(-1,1)
+    fig2 = plt.figure()
+    n_plot = n
+    ax = fig2.add_subplot(1,1,1)
+    ax.set_facecolor('black')
+    ax.set_xlim(-1, 1)
+    ax.set_ylim(-1, 1)
     ax.set_aspect("equal")
-    ax.set_title("Final Positions")
-    ax.scatter(n[-1,:,0],n[-1,:,1],marker='o',color='yellow',s=1)
+    plt.title("Particle Streaklines")
+    
+    for i in range(num_particles):
+        x = n_plot[:,i,0]
+        y = n_plot[:,i,1]
+        lc1 = create_gradient_line(x, y)
+        ax.add_collection(lc1)
+
     for i in range(num_sources):
         if sources[i,2] == 0:
             circle = plt.Circle((sources[i,0], sources[i,1]), source_size, color='red', fill=True)
         if sources[i,2] == 1:
             circle = plt.Circle((sources[i,0], sources[i,1]), source_size, color='blue', fill=True)
-        ax.add_patch(circle)
-    fig3.savefig("final_n_temp.png")
+        ax.add_patch(circle)      
+    fig2.save_fig('n_streak_temp.png')
 
-def solver(c,n,Nx,Ny,nx,ny,dx,dy,sc,num_sources,k,D,z,sources,source_size,num_particles,psi_D,Dp,dt,realtime,max_time,start_time):
+def solver(c,n,Nx,Ny,nx,ny,dx,dy,sc,num_sources,k,D,z,sources,source_size,num_particles,rad,psi_D,Dp,dt,realtime,max_time,start_time):
     size = 4*nx*ny
     cm = csr_matrix((size, size))
     c_vals = []
     n_vals = []
+    alpha = 0.8
     err_tot = 10
     iter = 0
     time = 0
@@ -626,30 +668,49 @@ def solver(c,n,Nx,Ny,nx,ny,dx,dy,sc,num_sources,k,D,z,sources,source_size,num_pa
         if iter != 0 and iter%10 == 0:
             print(f"Elapsed Runtime: {timer.time() - start_time} s")
         err = 1
+        err_change = -1
+        err_old = 100
         c_old = np.copy(c)
-        while err > 1e-11: #or np.min(c) < 0:
+        dcdx = build_derivative(c,nx,ny,dx,dy,num_sources,sc,0)
+        Nx = build_flux(c,dcdx,D,z,nx,ny,num_sources,sc,0)
+        dcdy = build_derivative(c,nx,ny,dx,dy,num_sources,sc,1)
+        Ny = build_flux(c,dcdy,D,z,nx,ny,num_sources,sc,1)
+        cm = build_c_matrix(c,nx,ny,dx,dy,Nx,Ny,sc,num_sources,z,D)
+        r = build_reaction(c,k,nx,ny,sc,num_sources)
+        while err_change < 0 and err > 1e-12: #or np.min(c) < 0:
+            c_previous = c
+            def c_sys(x):
+                return (cm @ x)*dt - r*dt - c_old + x
+            c = newton_krylov(c_sys,c,iter=1,method='lgmres',f_tol=1e-9)
             dcdx = build_derivative(c,nx,ny,dx,dy,num_sources,sc,0)
             Nx = build_flux(c,dcdx,D,z,nx,ny,num_sources,sc,0)
             dcdy = build_derivative(c,nx,ny,dx,dy,num_sources,sc,1)
             Ny = build_flux(c,dcdy,D,z,nx,ny,num_sources,sc,1)
+
+            t = timer.time()
             cm = build_c_matrix(c,nx,ny,dx,dy,Nx,Ny,sc,num_sources,z,D)
+            print(f"Total: {timer.time() - t}")
+
             r = build_reaction(c,k,nx,ny,sc,num_sources)
-            def c_sys(x):
-                return (cm @ x)*dt - r*dt - c_old + x
-            c = newton_krylov(c_sys,c,iter=1)
             err = np.linalg.norm((cm @ c)*dt - r*dt - c_old + c)/size
+            err_change = err - err_old
+            err_old = err
             err_tot = np.linalg.norm(c - c_old)/size
             print(f"Concentration Error: {err}")
-            #if np.min(c) < 0:
-                #print(f"BAD! min: {np.min(c)}")
-        #dcdx = build_derivative(c,nx,ny,dx,dy,num_sources,sc,0)
-        #dcdy = build_derivative(c,nx,ny,dx,dy,num_sources,sc,1)
+            if np.min(c) < 0:
+                print(f"BAD! min: {np.min(c)}")
+        if err_change < 0:
+            c = c_previous
+            dcdx = build_derivative(c,nx,ny,dx,dy,num_sources,sc,0)
+            dcdy = build_derivative(c,nx,ny,dx,dy,num_sources,sc,1)
         udp_x, udp_y = build_udp(c_old,dcdx,dcdy,psi_D,D,z,nx,ny)
-        n = update_particles(n,nx,ny,dx,dy,sources,num_sources,source_size,num_particles,Dp,dt,udp_x,udp_y,iter+1)  
+        n = update_particles(n,nx,ny,dx,dy,sources,num_sources,source_size,num_particles,Dp,rad,dt,udp_x,udp_y,iter+1)  
         print(f"Iteration error: {err_tot}")
-        if iter % 10 == 0:
+        if iter % 4 == 0:
             n_vals.append(n[:,:,iter])
             c_vals.append(c)
+        #if iter % 100 == 0:
+        #    plot_final(np.array(c_vals),np.array(n_vals),nx,ny,sources,num_sources,source_size,num_particles)
         iter += 1
     return np.array(c_vals), np.array(n_vals)
 
@@ -660,7 +721,7 @@ def main():
     dx = 2/nx
     dy = 2/ny
     grid = np.zeros(4*nx*ny)
-    dt = 0.01
+    dt = 0.005
     maxtime = 1000
 
     # Diffusivities
@@ -669,9 +730,9 @@ def main():
     dca = 0.793e-9
     db = 0.863e-9
     D = [1,doh/dh,dca/dh,db/dh]
-    Dp = 4e-3
+    Dp = 0.001
     z = [1,-1,2,-1]
-    psi_D = 1
+    psi_D = 3
     realtime = 1e-3*1e-3/dh
     num_steps = np.ceil(maxtime/realtime/dt) + 2
 
@@ -682,7 +743,7 @@ def main():
     # Row 1 holds x-values, 2 y-values, 3 type (acid vs. base), 4-7 start concentration
     # Species order... [H+], [OH-], [Ca2+], [Benzoic Base]
     c0 = np.array([1,1])
-    k = 1e12
+    k = 1e20
     sources = np.zeros((num_sources,7))
     build_sources(num_sources,source_size,sources,c0)
     source_cell = setup_source(sources,nx,ny,dx,dy,num_sources,source_size)
@@ -692,12 +753,13 @@ def main():
     grid = build_boundary(grid,nx,ny,source_cell,sources,num_sources)
     Nx = np.zeros(4*nx*ny)
     Ny = np.zeros(4*nx*ny)
-    num_particles = 5000
+    num_particles = 10000
+    rad = 0.004
     n = build_particles(sources,num_sources,num_particles,source_size,num_steps)
 
     print("Starting Solver...")
     start_time = timer.time()
-    c_vals,n_vals = solver(grid,n,Nx,Ny,nx,ny,dx,dy,source_cell,num_sources,k,D,z,sources,source_size,num_particles,psi_D,Dp,dt,realtime,maxtime,start_time)
+    c_vals,n_vals = solver(grid,n,Nx,Ny,nx,ny,dx,dy,source_cell,num_sources,k,D,z,sources,source_size,num_particles,rad,psi_D,Dp,dt,realtime,maxtime,start_time)
     plot_final(c_vals,n_vals,nx,ny,sources,num_sources,source_size,num_particles)
 
 main()
