@@ -7,7 +7,6 @@ from scipy.sparse.linalg import bicgstab, gmres, minres
 from scipy.sparse import csr_matrix
 from scipy.optimize import newton_krylov
 from scipy.spatial import KDTree
-import sys
 import random
 import time as timer
 
@@ -16,7 +15,7 @@ def build_sources(num_sources,source_size,sources,c0):
     for i in range(num_sources):
         c = c0[i]
         if i == 0:
-            sources[i][0] = -0.6
+            sources[i][0] = -0.3
             sources[i][1] = 0
             sources[i][2] = 0
 
@@ -25,7 +24,7 @@ def build_sources(num_sources,source_size,sources,c0):
             sources[i][5] = 0
             sources[i][6] = c
         if i == 1:
-            sources[i][0] = 0.6
+            sources[i][0] = 0.3
             sources[i][1] = 0
             sources[i][2] = 1
 
@@ -234,10 +233,7 @@ def build_flux(c,dc,D,z,nx,ny,num_sources,sc,dir):
     return n     
 
 def build_c_matrix(c,nx,ny,dx,dy,Nx,Ny,sc,num_sources,z,D):
-    sc_mask = np.zeros((nx, ny), dtype=bool)
-    for source in sc:
-        sc_mask[source[0], source[1]] = True
-
+    sc_set = set(sc)
     sumx, sumy, sum_left, sum_right, sum_up, sum_down = 0, 0, 0, 0, 0, 0
 
     size = 4*nx*ny
@@ -249,128 +245,6 @@ def build_c_matrix(c,nx,ny,dx,dy,Nx,Ny,sc,num_sources,z,D):
     inv_dy_sq = 1/dy**2
     dx2 = 2*dx
     dy2 = 2*dy
-
-    c1 = c[:size2]
-    c2 = c[size2:size2_2]
-    c3 = c[size2_2:size2_3]
-    c4 = c[size2_3:]
-    Nx1 = Nx[:size2]
-    Nx2 = Nx[size2:size2_2]
-    Nx3 = Nx[size2_2:size2_3]
-    Nx4 = Nx[size2_3:]
-    Ny1 = Ny[:size2]
-    Ny2 = Ny[size2:size2_2]
-    Ny3 = Ny[size2_2:size2_3]
-    Ny4 = Ny[size2_3:]
-
-    max_float = sys.float_info.max
-    bottom = z[0]**2*c1 + z[1]**2*c2 + z[2]**2*c3 + z[3]**2*c4 
-    bottom = np.where(bottom < 1e-5, max_float, bottom)
-    sumx = (z[0]*Nx1/D[0] + z[1]*Nx2/D[1] + z[2]*Nx3/D[2] + z[3]*Nx4/D[3])/bottom
-    sumy = (z[0]*Ny1/D[0] + z[1]*Ny2/D[1] + z[2]*Ny3/D[2] + z[3]*Ny4/D[3])/bottom
-    sumx = np.transpose(sumx.reshape((nx,ny)))
-    sumy = np.transpose(sumy.reshape((nx,ny)))
-    bottom = np.transpose(bottom.reshape((nx,ny)))
-
-    sum_left = np.zeros((nx,ny))
-    sum_right = np.zeros((nx,ny))
-    sum_up = np.zeros((nx,ny))
-    sum_down = np.zeros((nx,ny))
-    bottom_left = np.zeros((nx,ny))
-    bottom_right = np.zeros((nx,ny))
-    bottom_up = np.zeros((nx,ny))
-    bottom_down = np.zeros((nx,ny))
-
-    zero = np.zeros(ny)
-    bottom_left[0,:] = zero
-    bottom_left[1:,:] = bottom[:nx-1,:]
-    bottom_left = np.where(bottom_left < 1e-5, max_float, bottom_left)
-    bottom_right[nx-1,:] = zero
-    bottom_right[:nx-1,:] = bottom[1:,:] 
-    bottom_right = np.where(bottom_right < 1e-5, max_float, bottom_right)
-    sum_left[0,:] = zero
-    sum_left[1:,:] = sumx[:nx-1,:]*bottom[:nx-1,:]/bottom_left[:nx-1,:]
-    sum_right[nx-1,:] = zero
-    sum_right[:nx-1,:] = sumx[1:,:] *bottom[1:,:]/bottom_right[1:,:]
-
-    zero = np.zeros(nx)
-    bottom_down[:,0] = zero
-    bottom_down[:,1:] = bottom[:,:ny-1]
-    bottom_down = np.where(bottom_down < 1e-5, max_float, bottom_down)
-    bottom_up[:,ny-1] = zero
-    bottom_up[:,:ny-1] = bottom[:,1:]
-    bottom_up = np.where(bottom_up < 1e-5, max_float, bottom_up)
-    sum_down[:,0] = zero
-    sum_down[:,1:] = sumy[:,:ny-1]*bottom[:,:ny-1]/bottom_down[:,:ny-1]
-    sum_up[:,ny-1] = zero
-    sum_up[:,:ny-1] = sumy[:,1:]*bottom[:,1:]/bottom_up[:,1:] 
-
-    zero = np.zeros(ny)
-    left1 = (-sumx/dx2*z[0] - inv_dx_sq)*D[0]
-    left2 = (-sumx/dx2*z[1] - inv_dx_sq)*D[1]
-    left3 = (-sumx/dx2*z[2] - inv_dx_sq)*D[2]
-    left4 = (-sumx/dx2*z[3] - inv_dx_sq)*D[3]
-    left1[0,:] = zero
-    left2[0,:] = zero
-    left3[0,:] = zero
-    left4[0,:] = zero
-    left1[nx-1,:] = (-sumx[nx-1,:]/dx*z[0] - inv_dx_sq)*D[0]
-    left2[nx-1,:] = (-sumx[nx-1,:]/dx*z[1] - inv_dx_sq)*D[1]
-    left3[nx-1,:] = (-sumx[nx-1,:]/dx*z[2] - inv_dx_sq)*D[2]
-    left4[nx-1,:] = (-sumx[nx-1,:]/dx*z[3] - inv_dx_sq)*D[3]
-    right1 = (sumx/dx2*z[0] - inv_dx_sq)*D[0]
-    right2 = (sumx/dx2*z[1] - inv_dx_sq)*D[1]
-    right3 = (sumx/dx2*z[2] - inv_dx_sq)*D[2]
-    right4 = (sumx/dx2*z[3] - inv_dx_sq)*D[3]
-    right1[nx-1,:] = zero
-    right2[nx-1,:] = zero
-    right3[nx-1,:] = zero
-    right4[nx-1,:] = zero
-    right1[0,:] = (sumx[0,:]/dx*z[0] - inv_dx_sq)*D[0]
-    right2[0,:] = (sumx[0,:]/dx*z[1] - inv_dx_sq)*D[1]
-    right3[0,:] = (sumx[0,:]/dx*z[2] - inv_dx_sq)*D[2]
-    right4[0,:] = (sumx[0,:]/dx*z[3] - inv_dx_sq)*D[3]
-
-    zero = np.zeros(nx)
-    down1 = (-sumy/dy2*z[0] - inv_dy_sq)*D[0]
-    down2 = (-sumy/dy2*z[1] - inv_dy_sq)*D[1]
-    down3 = (-sumy/dy2*z[2] - inv_dy_sq)*D[2]
-    down4 = (-sumy/dy2*z[3] - inv_dy_sq)*D[3]
-    down1[:,0] = zero
-    down2[:,0] = zero
-    down3[:,0] = zero
-    down4[:,0] = zero
-    down1[:,ny-1] = (-sumy[:,ny-1]/dy*z[0] - inv_dy_sq)*D[0]
-    down2[:,ny-1] = (-sumy[:,ny-1]/dy*z[1] - inv_dy_sq)*D[1]
-    down3[:,ny-1] = (-sumy[:,ny-1]/dy*z[2] - inv_dy_sq)*D[2]
-    down4[:,ny-1] = (-sumy[:,ny-1]/dy*z[3] - inv_dy_sq)*D[3]
-    up1 = (sumy/dy2*z[0] - inv_dy_sq)*D[0]
-    up2 = (sumy/dy2*z[1] - inv_dy_sq)*D[1]
-    up3 = (sumy/dy2*z[2] - inv_dy_sq)*D[2]
-    up4 = (sumy/dy2*z[3] - inv_dy_sq)*D[3]
-    up1[:,ny-1] = zero
-    up2[:,ny-1] = zero
-    up3[:,ny-1] = zero
-    up4[:,ny-1] = zero
-    up1[:,0] = (sumy[:,0]/dy*z[0] - inv_dy_sq)*D[0]
-    up2[:,0] = (sumy[:,0]/dy*z[1] - inv_dy_sq)*D[1]
-    up3[:,0] = (sumy[:,0]/dy*z[2] - inv_dy_sq)*D[2]
-    up4[:,0] = (sumy[:,0]/dy*z[3] - inv_dy_sq)*D[3]
-
-    center = (sum_right-sum_left)/dx2 + (sum_up-sum_down)/dy2
-    center[0,0] = (sum_right[0,0]-sumx[0,0])/dx + (sum_up[0,0]-sumy[0,0])/dy
-    center[nx-1,ny-1] = (sumx[nx-1,ny-1]-sum_left[nx-1,ny-1])/dx + (sumy[nx-1,ny-1]-sum_down[nx-1,ny-1])/dy
-    center[0,ny-1] = (sum_right[0,ny-1]-sumx[0,ny-1])/dx + (sumy[0,ny-1]-sum_down[0,ny-1])/dy
-    center[nx-1,0] = (sumx[nx-1,0]-sum_left[nx-1,0])/dx + (sum_up[nx-1,0]-sumy[nx-1,0])/dy
-    center[0,1:ny-1] = (sum_right[0,1:ny-1]-sumx[0,1:ny-1])/dx + (sum_up[0,1:ny-1]-sum_down[0,1:ny-1])/dy2
-    center[nx-1,1:ny-1] = (sumx[nx-1,1:ny-1]-sum_left[nx-1,1:ny-1])/dx + (sum_up[nx-1,1:ny-1]-sum_down[nx-1,1:ny-1])/dy2
-    center[1:nx-1,0] = (sum_right[1:nx-1,0]-sum_left[1:nx-1,0])/dx2 + (sum_up[1:nx-1,0]-sumy[1:nx-1,0])/dy
-    center[1:nx-1,ny-1] = (sum_right[1:nx-1,ny-1]-sum_left[1:nx-1,ny-1])/dx2 + (sumy[1:nx-1,ny-1]-sum_down[1:nx-1,ny-1])/dy
-
-    center1 = center*D[0]*z[0] + D[0]*(2*inv_dx_sq + 2*inv_dy_sq)
-    center2 = center*D[1]*z[1] + D[1]*(2*inv_dx_sq + 2*inv_dy_sq)
-    center3 = center*D[2]*z[2] + D[2]*(2*inv_dx_sq + 2*inv_dy_sq)
-    center4 = center*D[3]*z[3] + D[3]*(2*inv_dx_sq + 2*inv_dy_sq)
 
     max_elements = 20 * size2
     data = np.zeros(max_elements, dtype=np.float64)
@@ -389,34 +263,147 @@ def build_c_matrix(c,nx,ny,dx,dy,Nx,Ny,sc,num_sources,z,D):
         indx = i % nx 
         indy = i // nx
 
-        if sc_mask[indx,indy]:
+        check = False
+        for k in range(num_sources):
+            if(indx,indy,k) in sc_set:
+                check = True       
+        if check == True:
             continue
         
-        add_entry(i,i,center1[indx,indy])
-        add_entry(i+size2,i+size2,center2[indx,indy])
-        add_entry(i+size2_2,i+size2_2,center3[indx,indy])
-        add_entry(i+size2_3,i+size2_3,center4[indx,indy])
+        bottom = z[0]**2*c[i] + z[1]**2*c[i+size2] + z[2]**2*c[i+size2_2] + z[3]**2*c[i+size2_3]
+        if bottom < 1e-5:
+            sumx = 0
+            sumy = 0
+        else:
+            sumx = (z[0]*Nx[i]/D[0] + z[1]*Nx[i+size2]/D[1] + z[2]*Nx[i+size2_2]/D[2] + z[3]*Nx[i+size2_3]/D[3])/bottom
+            sumy = (z[0]*Ny[i]/D[0] + z[1]*Ny[i+size2]/D[1] + z[2]*Ny[i+size2_2]/D[2] + z[3]*Ny[i+size2_3]/D[3])/bottom
 
         if indx != 0:
-            add_entry(i,i-1,left1[indx,indy])
-            add_entry(i+size2,i+size2-1,left2[indx,indy])
-            add_entry(i+size2_2,i+size2_2-1,left3[indx,indy])
-            add_entry(i+size2_3,i+size2_3-1,left4[indx,indy])
+            bottom_left = z[0]**2*c[i-1] + z[1]**2*c[i+size2-1] + z[2]**2*c[i+size2_2-1] + z[3]**2*c[i+size2_3-1]
+            if bottom_left < 1e-5:
+                sum_left = 0
+            else:
+                sum_left = (z[0]*Nx[i-1]/D[0] + z[1]*Nx[i+size2-1]/D[1] + z[2]*Nx[i+size2_2-1]/D[2] + z[3]*Nx[i+size2_3-1]/D[3])/bottom_left
+
         if indx != nx-1:
-            add_entry(i,i+1,right1[indx,indy])
-            add_entry(i+size2,i+size2+1,right2[indx,indy])
-            add_entry(i+size2_2,i+size2_2+1,right3[indx,indy])
-            add_entry(i+size2_3,i+size2_3+1,right4[indx,indy])
-        if indy != 0:
-            add_entry(i,i-nx,down1[indx,indy])
-            add_entry(i+size2,i+size2-nx,down2[indx,indy])
-            add_entry(i+size2_2,i+size2_2-nx,down3[indx,indy])
-            add_entry(i+size2_3,i+size2_3-nx,down4[indx,indy])
+            bottom_right = z[0]**2*c[i+1] + z[1]**2*c[i+size2+1] + z[2]**2*c[i+size2_2+1] + z[3]**2*c[i+size2_3+1]
+            if bottom_right < 1e-5:
+                sum_right = 0
+            else:
+                sum_right = (z[0]*Nx[i+1]/D[0] + z[1]*Nx[i+size2+1]/D[1] + z[2]*Nx[i+size2_2+1]/D[2] + z[3]*Nx[i+size2_3+1]/D[3])/bottom_right
+
         if indy != ny-1:
-            add_entry(i,i+nx,up1[indx,indy])
-            add_entry(i+size2,i+size2+nx,up2[indx,indy])
-            add_entry(i+size2_2,i+size2_2+nx,up3[indx,indy])
-            add_entry(i+size2_3,i+size2_3+nx,up4[indx,indy])
+            bottom_up = z[0]**2*c[i+nx] + z[1]**2*c[i+size2+nx] + z[2]**2*c[i+size2_2+nx] + z[3]**2*c[i+size2_3+nx]
+            if bottom_up < 1e-5:
+                sum_up = 0
+            else:
+                sum_up = (z[0]*Ny[i+nx]/D[0] + z[1]*Ny[i+size2+nx]/D[1] + z[2]*Ny[i+size2_2+nx]/D[2] + z[3]*Ny[i+size2_3+nx]/D[3])/bottom_up
+        
+        if indy != 0:
+            bottom_down = z[0]**2*c[i-nx] + z[1]**2*c[i+size2-nx] + z[2]**2*c[i+size2_2-nx] + z[3]**2*c[i+size2_3-nx]
+            if bottom_down < 1e-5:
+                sum_down = 0
+            else:
+                sum_down = (z[0]*Ny[i-nx]/D[0] + z[1]*Ny[i+size2-nx]/D[1] + z[2]*Ny[i+size2_2-nx]/D[2] + z[3]*Ny[i+size2_3-nx]/D[3])/bottom_down 
+
+        center = 0
+        if indx == 0:
+            center += (sum_right-sumx)/dx
+        elif indx == nx-1:
+            center += (sumx-sum_left)/dx
+        else:
+            center += (sum_right-sum_left)/dx2
+        if indy == 0:
+            center += (sum_up-sumy)/dy
+        elif indy == ny-1:
+            center += (sumy-sum_down)/dy
+        else:
+            center += (sum_up-sum_down)/dy2
+
+        if indx == 0:
+            center += -sumx/dx
+            right1 = (sumx/dx*z[0] - inv_dx_sq)*D[0]
+            right2 = (sumx/dx*z[1] - inv_dx_sq)*D[1]
+            right3 = (sumx/dx*z[2] - inv_dx_sq)*D[2]
+            right4 = (sumx/dx*z[3] - inv_dx_sq)*D[3]
+            add_entry(i,i+1,right1)
+            add_entry(i+size2,i+size2+1,right2)
+            add_entry(i+size2_2,i+size2_2+1,right3)
+            add_entry(i+size2_3,i+size2_3+1,right4) 
+        elif indx == nx-1:
+            center += sumx/dx
+            left1 = (-sumx/dx*z[0] - inv_dx_sq)*D[0]
+            left2 = (-sumx/dx*z[1] - inv_dx_sq)*D[1]
+            left3 = (-sumx/dx*z[2] - inv_dx_sq)*D[2]
+            left4 = (-sumx/dx*z[3] - inv_dx_sq)*D[3]
+            add_entry(i,i-1,left1)
+            add_entry(i+size2,i+size2-1,left2)
+            add_entry(i+size2_2,i+size2_2-1,left3)
+            add_entry(i+size2_3,i+size2_3-1,left4) 
+        else:
+            left1 = (-sumx/dx2*z[0] - inv_dx_sq)*D[0]
+            left2 = (-sumx/dx2*z[1] - inv_dx_sq)*D[1]
+            left3 = (-sumx/dx2*z[2] - inv_dx_sq)*D[2]
+            left4 = (-sumx/dx2*z[3] - inv_dx_sq)*D[3]
+            right1 = (sumx/dx2*z[0] - inv_dx_sq)*D[0]
+            right2 = (sumx/dx2*z[1] - inv_dx_sq)*D[1]
+            right3 = (sumx/dx2*z[2] - inv_dx_sq)*D[2]
+            right4 = (sumx/dx2*z[3] - inv_dx_sq)*D[3]
+            add_entry(i,i-1,left1)
+            add_entry(i+size2,i+size2-1,left2)
+            add_entry(i+size2_2,i+size2_2-1,left3)
+            add_entry(i+size2_3,i+size2_3-1,left4)
+            add_entry(i,i+1,right1)
+            add_entry(i+size2,i+size2+1,right2)
+            add_entry(i+size2_2,i+size2_2+1,right3)
+            add_entry(i+size2_3,i+size2_3+1,right4) 
+
+        if indy == 0:
+            center += -sumy/dy
+            up1 = (sumy/dy*z[0] - inv_dy_sq)*D[0]
+            up2 = (sumy/dy*z[1] - inv_dy_sq)*D[1]
+            up3 = (sumy/dy*z[2] - inv_dy_sq)*D[2]
+            up4 = (sumy/dy*z[3] - inv_dy_sq)*D[3]
+            add_entry(i,i+nx,up1)
+            add_entry(i+size2,i+size2+nx,up2)
+            add_entry(i+size2_2,i+size2_2+nx,up3)
+            add_entry(i+size2_3,i+size2_3+nx,up4) 
+        elif indy == ny-1:
+            center += sumy/dy
+            down1 = (-sumy/dy*z[0] - inv_dy_sq)*D[0]
+            down2 = (-sumy/dy*z[1] - inv_dy_sq)*D[1]
+            down3 = (-sumy/dy*z[2] - inv_dy_sq)*D[2]
+            down4 = (-sumy/dy*z[3] - inv_dy_sq)*D[3]
+            add_entry(i,i-nx,down1)
+            add_entry(i+size2,i+size2-nx,down2)
+            add_entry(i+size2_2,i+size2_2-nx,down3)
+            add_entry(i+size2_3,i+size2_3-nx,down4) 
+        else:
+            down1 = (-sumy/dy2*z[0] - inv_dy_sq)*D[0]
+            down2 = (-sumy/dy2*z[1] - inv_dy_sq)*D[1]
+            down3 = (-sumy/dy2*z[2] - inv_dy_sq)*D[2]
+            down4 = (-sumy/dy2*z[3] - inv_dy_sq)*D[3]
+            up1 = (sumy/dy2*z[0] - inv_dy_sq)*D[0]
+            up2 = (sumy/dy2*z[1] - inv_dy_sq)*D[1]
+            up3 = (sumy/dy2*z[2] - inv_dy_sq)*D[2]
+            up4 = (sumy/dy2*z[3] - inv_dy_sq)*D[3]
+            add_entry(i,i-nx,down1)
+            add_entry(i+size2,i+size2-nx,down2)
+            add_entry(i+size2_2,i+size2_2-nx,down3)
+            add_entry(i+size2_3,i+size2_3-nx,down4)
+            add_entry(i,i+nx,up1)
+            add_entry(i+size2,i+size2+nx,up2)
+            add_entry(i+size2_2,i+size2_2+nx,up3)
+            add_entry(i+size2_3,i+size2_3+nx,up4)           
+
+        center1 = center*D[0]*z[0] + D[0]*(2*inv_dx_sq + 2*inv_dy_sq)
+        center2 = center*D[1]*z[1] + D[1]*(2*inv_dx_sq + 2*inv_dy_sq)
+        center3 = center*D[2]*z[2] + D[2]*(2*inv_dx_sq + 2*inv_dy_sq)
+        center4 = center*D[3]*z[3] + D[3]*(2*inv_dx_sq + 2*inv_dy_sq)
+        add_entry(i,i,center1)
+        add_entry(i+size2,i+size2,center2)
+        add_entry(i+size2_2,i+size2_2,center3)
+        add_entry(i+size2_3,i+size2_3,center4)
 
     matrix = csr_matrix((data[:idx], (rows[:idx], cols[:idx])), shape=(size, size))
     return matrix       
@@ -627,8 +614,8 @@ def plot_final(c,n,nx,ny,sources,num_sources,source_size,num_particles):
             print(frame)
         ax = fig3.add_subplot(1,1,1)
         ax.set_facecolor("black")
-        ax.set_xlim(-1,1)
-        ax.set_ylim(-1,1)
+        ax.set_xlim(-0.5,0.5)
+        ax.set_ylim(-0.5,0.5)
         ax.set_aspect("equal")
         ax.set_title("Final Positions")
         ax.scatter(n[frame,:,0],n[frame,:,1],marker='o',color='yellow',s=0.1)
@@ -646,8 +633,8 @@ def plot_final(c,n,nx,ny,sources,num_sources,source_size,num_particles):
     n_plot = n
     ax = fig2.add_subplot(1,1,1)
     ax.set_facecolor('black')
-    ax.set_xlim(-1, 1)
-    ax.set_ylim(-1, 1)
+    ax.set_xlim(-0.5, 0.5)
+    ax.set_ylim(-0.5, 0.5)
     ax.set_aspect("equal")
     plt.title("Particle Streaklines")
     
@@ -670,12 +657,13 @@ def solver(c,n,Nx,Ny,nx,ny,dx,dy,sc,num_sources,k,D,z,sources,source_size,num_pa
     cm = csr_matrix((size, size))
     c_vals = []
     n_vals = []
-    alpha = 0.8
+    alpha = 0.5
     err_tot = 10
+    checktime = 0
     iter = 0
     time = 0
     while time < max_time:
-        time = realtime*dt*iter
+        time += realtime*dt
         print("Iteration: " + str(iter))
         print(f"Time: {time} s")
         if iter != 0 and iter%10 == 0:
@@ -690,11 +678,12 @@ def solver(c,n,Nx,Ny,nx,ny,dx,dy,sc,num_sources,k,D,z,sources,source_size,num_pa
         Ny = build_flux(c,dcdy,D,z,nx,ny,num_sources,sc,1)
         cm = build_c_matrix(c,nx,ny,dx,dy,Nx,Ny,sc,num_sources,z,D)
         r = build_reaction(c,k,nx,ny,sc,num_sources)
-        while err_change < 0 and err > 1e-12: #or np.min(c) < 0:
+        while err > 1e-12 and err_change < 0: #or np.min(c) < 0:
             c_previous = c
             def c_sys(x):
                 return (cm @ x)*dt - r*dt - c_old + x
-            c = newton_krylov(c_sys,c,iter=1,method='bicgstab',f_tol=1e-9)
+            c_new = newton_krylov(c_sys,c,iter=1,method='lgmres',f_tol=1e-12)
+            c = c_new*alpha + c_previous*(1-alpha)
             dcdx = build_derivative(c,nx,ny,dx,dy,num_sources,sc,0)
             Nx = build_flux(c,dcdx,D,z,nx,ny,num_sources,sc,0)
             dcdy = build_derivative(c,nx,ny,dx,dy,num_sources,sc,1)
@@ -708,6 +697,7 @@ def solver(c,n,Nx,Ny,nx,ny,dx,dy,sc,num_sources,k,D,z,sources,source_size,num_pa
             print(f"Concentration Error: {err}")
             if np.min(c) < 0:
                 print(f"BAD! min: {np.min(c)}")
+
         if err_change < 0:
             c = c_previous
             dcdx = build_derivative(c,nx,ny,dx,dy,num_sources,sc,0)
@@ -715,11 +705,12 @@ def solver(c,n,Nx,Ny,nx,ny,dx,dy,sc,num_sources,k,D,z,sources,source_size,num_pa
         udp_x, udp_y = build_udp(c_old,dcdx,dcdy,psi_D,D,z,nx,ny)
         n = update_particles(n,nx,ny,dx,dy,sources,num_sources,source_size,num_particles,Dp,rad,dt,udp_x,udp_y,iter+1)  
         print(f"Iteration error: {err_tot}")
-        if iter % 4 == 0:
+        if time > checktime:
             n_vals.append(n[:,:,iter])
             c_vals.append(c)
-        #if iter % 100 == 0:
-        #    plot_final(np.array(c_vals),np.array(n_vals),nx,ny,sources,num_sources,source_size,num_particles)
+            checktime += 2
+        if iter % 100 == 0 and iter != 0:
+            plot_final(np.array(c_vals),np.array(n_vals),nx,ny,sources,num_sources,source_size,num_particles)
         iter += 1
     return np.array(c_vals), np.array(n_vals)
 
@@ -739,20 +730,20 @@ def main():
     dca = 0.793e-9
     db = 0.863e-9
     D = [1,doh/dh,dca/dh,db/dh]
-    Dp = 0.004
+    Dp = 0.001
     z = [1,-1,2,-1]
     psi_D = 3
     realtime = 1e-3*1e-3/dh
-    num_steps = np.ceil(maxtime/realtime/dt) + 2
+    num_steps = 501
 
     # Build Sources
     print("Building Sources...")
     num_sources = 2
-    source_size = 0.2
+    source_size = 0.1
     # Row 1 holds x-values, 2 y-values, 3 type (acid vs. base), 4-7 start concentration
     # Species order... [H+], [OH-], [Ca2+], [Benzoic Base]
     c0 = np.array([1,1])
-    k = 1e20
+    k = 1e100
     sources = np.zeros((num_sources,7))
     build_sources(num_sources,source_size,sources,c0)
     source_cell = setup_source(sources,nx,ny,dx,dy,num_sources,source_size)
@@ -763,7 +754,7 @@ def main():
     Nx = np.zeros(4*nx*ny)
     Ny = np.zeros(4*nx*ny)
     num_particles = 10000
-    rad = 0.004
+    rad = 0.001
     n = build_particles(sources,num_sources,num_particles,source_size,num_steps)
 
     print("Starting Solver...")

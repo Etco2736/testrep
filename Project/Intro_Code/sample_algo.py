@@ -47,6 +47,7 @@ def main():
     colors = plt.get_cmap('tab10').colors
 
     fig = plt.figure(figsize=(18,10))
+    fig.suptitle("Steepest Descent")
     ax = fig.add_subplot(1,3,1)
     ax2 = fig.add_subplot(1,3,2)
     ax3 = fig.add_subplot(1,3,3)
@@ -61,6 +62,7 @@ def main():
     ax3.set_ylabel("Error")
 
     fig2 = plt.figure(figsize=(18,10))
+    fig2.suptitle("Conjugate Gradient Method")
     ax_2 = fig2.add_subplot(1,3,1)
     ax2_2 = fig2.add_subplot(1,3,2)
     ax3_2 = fig2.add_subplot(1,3,3)
@@ -74,6 +76,21 @@ def main():
     ax2_2.set_ylabel("Error")
     ax3_2.set_ylabel("Error")
 
+    fig3 = plt.figure(figsize=(18,10))
+    fig3.suptitle("Assymetric Conjugate Gradient Method")
+    ax_3 = fig3.add_subplot(1,3,1)
+    ax2_3 = fig3.add_subplot(1,3,2)
+    ax3_3 = fig3.add_subplot(1,3,3)
+    ax_3.set_title("n = 10")
+    ax2_3.set_title("n = 100")
+    ax3_3.set_title("n = 1000")
+    ax_3.set_xlabel("Iteration Number")
+    ax2_3.set_xlabel("Iteration Number")
+    ax3_3.set_xlabel("Iteration Number")
+    ax_3.set_ylabel("Error")
+    ax2_3.set_ylabel("Error")
+    ax3_3.set_ylabel("Error")
+
     for n in n_vals:
         k_vals = np.linspace(1,10,10)
         i = 0
@@ -86,6 +103,7 @@ def main():
             b = b / np.linalg.norm(b)
             x = np.array(np.random.randn(n))
             x2 = np.copy(x)
+            x3 = np.copy(x)
 
             tol = 1e-10
             max_iter = 2000
@@ -103,7 +121,6 @@ def main():
 
             # CG, solve and plot
             sol_cg, errs = cg(A,x2,b,tol,max_iter)
-            #print(errs)
             iters = np.arange(0,len(errs),1)
             if n == 10:
                 ax_2.semilogy(iters,errs,color=colors[i],linestyle='-',label=f"k = {k}")
@@ -111,6 +128,21 @@ def main():
                 ax2_2.semilogy(iters,errs,color=colors[i],linestyle='-',label=f"k = {k}")
             else:
                 ax3_2.semilogy(iters,errs,color=colors[i],linestyle='-',label=f"k = {k}")
+
+            epsilon = 0.01
+            A += epsilon * np.random.randn(n,n)
+
+            # CG, solve and plot
+            max_iter = 100
+            sol_cg, errs = cg(A,x3,b,tol,max_iter)
+            iters = np.arange(0,len(errs),1)
+            if n == 10:
+                ax_3.semilogy(iters,errs,color=colors[i],linestyle='-',label=f"k = {k}")
+            elif n == 100:
+                ax2_3.semilogy(iters,errs,color=colors[i],linestyle='-',label=f"k = {k}")
+            else:
+                ax3_3.semilogy(iters,errs,color=colors[i],linestyle='-',label=f"k = {k}")
+
 
             i += 1
 
@@ -129,5 +161,13 @@ def main():
     ax2_2.legend(loc="upper right")
     ax3_2.legend(loc="upper right")
     fig2.savefig("cg_result.png")
+
+    ax_3.set_ylim(tol,1)
+    ax2_3.set_ylim(tol,1)
+    ax3_3.set_ylim(tol,1)
+    ax_3.legend(loc="upper right")
+    ax2_3.legend(loc="upper right")
+    ax3_3.legend(loc="upper right")
+    fig3.savefig("assymetric_result.png")
 
 main()
